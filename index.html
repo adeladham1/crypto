@@ -46,7 +46,7 @@
   <script>
     let allCryptos = [];
     let page = 1;
-    const perPage = 500;  // تغيير العدد إلى 500
+    const perPage = 250;
     let isLoading = false;
 
     // جلب بيانات العملات الرقمية
@@ -55,7 +55,7 @@
       const params = {
         vs_currency: 'usd',
         order: 'market_cap_desc',
-        per_page: perPage, // استخدام العدد الجديد
+        per_page: perPage,
         page: pageNumber,
         sparkline: false
       };
