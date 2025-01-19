@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>أسعار العملات الرقمية</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body class="bg-gray-100 text-gray-800">
+  <header class="bg-blue-600 text-white p-4">
+    <h1 class="text-center text-2xl font-bold">أسعار العملات الرقمية</h1>
+  </header>
+
+  <main class="p-6">
+    <div class="mb-6 flex flex-col sm:flex-row items-center justify-between">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="ابحث باسم العملة أو رمزها..."
+        class="p-2 border rounded mb-4 sm:mb-0 sm:ml-4 w-full sm:w-auto">
+
+      <select id="sort-select" class="p-2 border rounded">
+        <option value="">الترتيب حسب</option>
+        <option value="asc">السعر: من الأقل للأعلى</option>
+        <option value="desc">السعر: من الأعلى للأقل</option>
+      </select>
+    </div>
+
+    <div id="loading" class="flex justify-center items-center h-32">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+
+    <div id="crypto-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6 hidden">
+      <!-- سيتم تحميل العملات هنا -->
+    </div>
+
+    <!-- شاشة التحميل أسفل الصفحة -->
+    <div id="loading-bottom" class="flex justify-center items-center h-32 mt-6 hidden">
+      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+    </div>
+  </main>
+
+  <script>
+    let allCryptos = [];
+    let page = 1;
+    const perPage = 250;
+    let isLoading = false;
+
+    // جلب بيانات العملات الرقمية بناءً على النص المدخل في البحث
+    async function fetchCryptocurrencies(searchQuery = '', pageNumber = 1) {
+      const apiUrl = 'https://api.coingecko.com/api/v3/coins/markets';
+      const params = {
+        vs_currency: 'usd',
+        order: 'market_cap_desc',
+        per_page: perPage,
+        page: pageNumber,
+        sparkline: false
+      };
+
+      if (searchQuery) {
+        params.ids = searchQuery; // إضافة معلمة البحث للـ API
+      }
+
+      try {
+        const response = await axios.get(apiUrl, {
+          params
+        });
+        return response.data;
+      } catch (error) {
+        console.error('خطأ في جلب البيانات:', error);
+        return [];
+      }
+    }
+
+    // عرض العملات الرقمية
+    function renderCryptocurrencies(cryptos, append = false) {
+      const cryptoList = document.getElementById('crypto-list');
+      const loadingIndicator = document.getElementById('loading');
+      const loadingBottom = document.getElementById('loading-bottom');
+
+      if (!append) {
+        loadingIndicator.classList.add('hidden');
+        cryptoList.classList.remove('hidden');
+        cryptoList.innerHTML = '';
+      }
+
+      cryptos.forEach(crypto => {
+        // تحويل السعر إلى نص
+        let formattedPrice = crypto.current_price.toFixed(10);
+
+        // إزالة الأصفار الزائدة بعد الفاصلة العشرية
+        formattedPrice = formattedPrice.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+
+        // التحقق إذا كان السعر هو صفر أو مجرد أصفار بعد الفاصلة
+        if (formattedPrice === '0') return;
+
+        const cryptoCard = document.createElement('div');
+        cryptoCard.className = 'bg-white rounded-lg shadow p-4';
+
+        cryptoCard.innerHTML = ` 
+      <div class="flex items-center">
+        <img src="${crypto.image}" alt="${crypto.name} logo" class="w-10 h-10 ml-4">
+        <h2 class="font-bold text-xl">${crypto.name}</h2>
+      </div>
+      <p class="mt-2">الرمز: <span class="text-gray-600">${crypto.symbol.toUpperCase()}</span></p>
+      <p class="mt-2">السعر: <span class="text-green-600 font-bold">$${formattedPrice}</span></p>
+      <p class="mt-2">القيمة السوقية: <span class="text-gray-600">$${crypto.market_cap.toLocaleString()}</span></p>
+    `;
+
+        cryptoList.appendChild(cryptoCard);
+      });
+    }
+
+    // دالة لترتيب العملات بناءً على الاختيار
+    function sortCryptos(cryptos, sortValue) {
+      if (sortValue === 'asc') {
+        return cryptos.sort((a, b) => a.current_price - b.current_price);
+      } else if (sortValue === 'desc') {
+        return cryptos.sort((a, b) => b.current_price - a.current_price);
+      }
+      return cryptos; // إذا لم يتم اختيار ترتيب
+    }
+
+    // تعديل البحث ليعمل مع الـ API مباشرة
+    async function filterAndSortCryptos() {
+      const searchInput = document.getElementById('search-input').value.trim().toLowerCase();
+      const sortValue = document.getElementById('sort-select').value;
+
+      if (searchInput) {
+        // إذا كان هناك نص في خانة البحث، قم بالبحث عن العملات المطابقة
+        const searchResults = await fetchCryptocurrencies(searchInput);
+        renderCryptocurrencies(searchResults);
+      } else {
+        // إذا كانت خانة البحث فارغة، عرض كل العملات
+        const sortedCryptos = sortCryptos(allCryptos, sortValue);
+        renderCryptocurrencies(sortedCryptos);
+      }
+    }
+
+    // جلب وتحميل المزيد عند التمرير
+    async function loadMoreCryptos() {
+      if (isLoading) return;
+
+      isLoading = true;
+      const newCryptos = await fetchCryptocurrencies('', page);
+      allCryptos = [...allCryptos, ...newCryptos];
+      renderCryptocurrencies(newCryptos, true);
+      page++;
+      isLoading = false;
+      document.getElementById('loading-bottom').classList.add('hidden'); // إخفاء شاشة التحميل السفلية بعد الانتهاء
+    }
+
+    // مراقبة التمرير لتحميل المزيد
+    window.addEventListener('scroll', () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 100) {
+        document.getElementById('loading-bottom').classList.remove('hidden'); // إظهار شاشة التحميل السفلية
+        loadMoreCryptos();
+      }
+    });
+
+    // تهيئة التطبيق
+    async function init() {
+      const initialCryptos = await fetchCryptocurrencies();
+      allCryptos = [...initialCryptos];
+      renderCryptocurrencies(initialCryptos);
+      page++;
+
+      document.getElementById('search-input').addEventListener('input', filterAndSortCryptos);
+      document.getElementById('sort-select').addEventListener('change', filterAndSortCryptos);
+    }
+
+    init();
+  </script>
+</body>
+
+</html>
